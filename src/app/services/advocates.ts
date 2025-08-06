@@ -2,7 +2,7 @@ import { count } from "drizzle-orm";
 import db from "../../db";
 import { advocates } from "../../db/schema";
 
-export async function getAdvocates(page = 1, pageSize = 10) {
+export async function getAdvocates(page: number, pageSize: number) {
   const offset = (page - 1) * pageSize;
   const advocateList = await db
     .select()

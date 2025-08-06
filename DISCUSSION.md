@@ -8,6 +8,7 @@ Here's a list of features I would've added had I had the time
 - Tweak the frontend so results are displayed a little nicer. Right now specialties make each column very tall. Either truncate them and allow to click to expand or switch to card-based results rather than table. Chose table for simplicity.
 - Add more Solace branding and colore palette to frontend
 - Fix npm vulnerabilities. Those were giving me trouble so I stopped trying to fix in the name of time but that wouldn't fly in a production app.
+- Add pre-commit hooks for automatic linting/formatting/testing
 
 ## Thought Process
 I wanted to make sure I got the core functionality of a search page in. To me, that means pagination, sorting, and querying on a select number of columns.

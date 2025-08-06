@@ -1,9 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -13,26 +20,58 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AdvocateResponse, AdvocateListResponse } from "@/types/advocates";
-import { WithPagination } from "@/types/common";
+import { SortDirection, WithPagination } from "@/types/common";
 
+// Custom debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 export default function Home() {
   const [advocates, setAdvocates] = useState<AdvocateListResponse>([]);
-  const [filteredAdvocates, setFilteredAdvocates] = useState<AdvocateListResponse>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [sortField, setSortField] = useState<string>("");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
-  const fetchAdvocates = async (page: number = 1, size: number = 10) => {
+  // Debounce the search term with 400ms delay
+  const debouncedSearchTerm = useDebounce(searchTerm, 400);
+
+  const fetchAdvocates = useCallback(async (page: number = 1, size: number = 10, query?: string, sort?: string, direction?: SortDirection) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/advocates?page=${page}&pageSize=${size}`);
+      const params = new URLSearchParams({
+        page: page.toString(),
+        pageSize: size.toString(),
+      });
+      
+      if (query) {
+        params.append("query", query);
+      }
+
+      if (sort) {
+        params.append("sortField", sort);
+        params.append("sortDirection", direction ?? "asc");
+      }
+      
+      const response = await fetch(`/api/advocates?${params.toString()}`);
       const advocatesResponse: WithPagination<AdvocateResponse> = await response.json();
       setAdvocates(advocatesResponse.items || []);
-      setFilteredAdvocates(advocatesResponse.items || []);
       setTotalCount(advocatesResponse.totalCount || 0);
       setCurrentPage(advocatesResponse.page || 1);
       setPageSize(advocatesResponse.pageSize || 10);
@@ -41,69 +80,40 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
+  // Fetch advocates when debounced search term, sort field, or sort direction changes
   useEffect(() => {
     console.log("fetching advocates...");
-    fetchAdvocates(currentPage, pageSize);
-  }, [currentPage, pageSize]);
+    fetchAdvocates(currentPage, pageSize, debouncedSearchTerm, sortField || undefined, sortDirection);
+  }, [debouncedSearchTerm, currentPage, pageSize, sortField, sortDirection, fetchAdvocates]);
 
-  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const searchValue = e.target.value;
     setSearchTerm(searchValue);
-
-    // If search is empty, show all advocates from current page
-    if (!searchValue.trim()) {
-      setFilteredAdvocates(advocates);
-      return;
-    }
-
-    console.log("filtering advocates...");
-    console.log("Search value:", searchValue);
-    console.log("All advocates:", advocates);
-    
-    const filteredAdvocates = advocates.filter((advocate) => {
-      const specialties = Array.isArray(advocate.specialties) ? advocate.specialties : [];
-      const matches = (
-        advocate.firstName?.toLowerCase().includes(searchValue.toLowerCase()) ||
-        advocate.lastName?.toLowerCase().includes(searchValue.toLowerCase()) ||
-        advocate.city?.toLowerCase().includes(searchValue.toLowerCase()) ||
-        advocate.degree?.toLowerCase().includes(searchValue.toLowerCase()) ||
-        specialties.some(specialty => specialty?.toLowerCase().includes(searchValue.toLowerCase()))
-      );
-      
-      console.log(`Advocate ${advocate.firstName} ${advocate.lastName}:`, {
-        firstName: advocate.firstName,
-        lastName: advocate.lastName,
-        city: advocate.city,
-        degree: advocate.degree,
-        specialties: specialties,
-        matches: matches
-      });
-      
-      return matches;
-    });
-
-    console.log("Filtered advocates:", filteredAdvocates);
-    setFilteredAdvocates(filteredAdvocates);
+    // Reset to first page when searching
+    setCurrentPage(1);
   };
 
-  const onClick = () => {
-    console.log(advocates);
-    setFilteredAdvocates(advocates);
-    setSearchTerm("");
-    setCurrentPage(1);
+  const handleSortChange = (value: string) => {
+    if (value === "none") {
+      setSortField("");
+      setSortDirection("asc");
+    } else {
+      const [field, direction] = value.split("-");
+      setSortField(field);
+      setSortDirection(direction as "asc" | "desc");
+    }
+    setCurrentPage(1); // Reset to first page when sorting
   };
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
-    fetchAdvocates(newPage, pageSize);
   };
 
   const handlePageSizeChange = (newPageSize: number) => {
     setPageSize(newPageSize);
     setCurrentPage(1);
-    fetchAdvocates(1, newPageSize);
   };
 
   const totalPages = Math.ceil(totalCount / pageSize);
@@ -117,14 +127,27 @@ export default function Home() {
         <CardContent className="space-y-4">
           <div className="flex gap-2">
             <Input
-              placeholder="Search by name, city, degree, specialties, or experience..."
+              placeholder="Search by name, city, degree, or experience..."
               value={searchTerm}
-              onChange={onChange}
+              onChange={handleSearch}
               className="flex-1"
             />
-            <Button onClick={onClick} variant="outline">
-              Reset Search
-            </Button>
+            <Select value={sortField ? `${sortField}-${sortDirection}` : "none"} onValueChange={handleSortChange}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Sort by..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sort by</SelectItem>
+                <SelectItem value="firstName-asc">First Name (A-Z)</SelectItem>
+                <SelectItem value="firstName-desc">First Name (Z-A)</SelectItem>
+                <SelectItem value="lastName-asc">Last Name (A-Z)</SelectItem>
+                <SelectItem value="lastName-desc">Last Name (Z-A)</SelectItem>
+                <SelectItem value="city-asc">City (A-Z)</SelectItem>
+                <SelectItem value="city-desc">City (Z-A)</SelectItem>
+                <SelectItem value="yearsOfExperience-asc">Experience (Low to High)</SelectItem>
+                <SelectItem value="yearsOfExperience-desc">Experience (High to Low)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -137,13 +160,13 @@ export default function Home() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>First Name</TableHead>
-                <TableHead>Last Name</TableHead>
-                <TableHead>City</TableHead>
-                <TableHead>Degree</TableHead>
-                <TableHead>Specialties</TableHead>
-                <TableHead>Years of Experience</TableHead>
-                <TableHead>Phone Number</TableHead>
+                <TableHead className="w-[120px]">First Name</TableHead>
+                <TableHead className="w-[120px]">Last Name</TableHead>
+                <TableHead className="w-[100px]">City</TableHead>
+                <TableHead className="w-[100px]">Degree</TableHead>
+                <TableHead className="w-[200px]">Specialties</TableHead>
+                <TableHead className="w-[140px]">Years of Experience</TableHead>
+                <TableHead className="w-[140px]">Phone Number</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -156,14 +179,14 @@ export default function Home() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : filteredAdvocates.length === 0 ? (
+              ) : advocates.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     {searchTerm ? "No advocates found matching your search." : "No advocates found."}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredAdvocates.map((advocate) => (
+                advocates.map((advocate) => (
                   <TableRow key={advocate.id}>
                     <TableCell className="font-medium">{advocate.firstName}</TableCell>
                     <TableCell>{advocate.lastName}</TableCell>
@@ -208,7 +231,7 @@ export default function Home() {
             
             <div className="flex items-center space-x-2">
               <p className="text-sm text-muted-foreground">
-                Page {currentPage} of {totalPages}
+                Page {currentPage} of {totalPages || 1}
               </p>
               <div className="flex items-center space-x-1">
                 <Button

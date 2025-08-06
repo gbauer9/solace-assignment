@@ -1,11 +1,5 @@
 import { z } from "zod";
 
-export const AdvocatesQuerySchema = z.object({
-    query: z.string().optional(),
-    page: z.coerce.number().min(1),
-    pageSize: z.coerce.number().min(1).max(50),
-});
-
 export const AdvocateResponseSchema = z.object({
     id: z.number(),
     firstName: z.string(),

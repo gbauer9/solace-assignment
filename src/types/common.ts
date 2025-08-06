@@ -4,3 +4,5 @@ export type WithPagination<T> = {
     page: number;
     pageSize: number;
 }
+
+export type SortDirection = "asc" | "desc";

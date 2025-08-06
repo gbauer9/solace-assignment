@@ -12,21 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AdvocateResponse, AdvocateListResponse } from "@/types/advocates";
+import { WithPagination } from "@/types/common";
 
-interface Advocate {
-  id: number;
-  firstName: string;
-  lastName: string;
-  city: string;
-  degree: string;
-  specialties: string[];
-  yearsOfExperience: string;
-  phoneNumber: string;
-}
+
 
 export default function Home() {
-  const [advocates, setAdvocates] = useState<Advocate[]>([]);
-  const [filteredAdvocates, setFilteredAdvocates] = useState<Advocate[]>([]);
+  const [advocates, setAdvocates] = useState<AdvocateListResponse>([]);
+  const [filteredAdvocates, setFilteredAdvocates] = useState<AdvocateListResponse>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -37,12 +30,12 @@ export default function Home() {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/advocates?page=${page}&pageSize=${size}`);
-      const jsonResponse = await response.json();
-      setAdvocates(jsonResponse.advocateList || []);
-      setFilteredAdvocates(jsonResponse.advocateList || []);
-      setTotalCount(jsonResponse.totalCount || 0);
-      setCurrentPage(jsonResponse.page || 1);
-      setPageSize(jsonResponse.pageSize || 10);
+      const advocatesResponse: WithPagination<AdvocateResponse> = await response.json();
+      setAdvocates(advocatesResponse.items || []);
+      setFilteredAdvocates(advocatesResponse.items || []);
+      setTotalCount(advocatesResponse.totalCount || 0);
+      setCurrentPage(advocatesResponse.page || 1);
+      setPageSize(advocatesResponse.pageSize || 10);
     } catch (error) {
       console.error("Error fetching advocates:", error);
     } finally {

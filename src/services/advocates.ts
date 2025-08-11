@@ -1,4 +1,4 @@
-import { asc, count, desc, eq, ilike, or } from "drizzle-orm";
+import { asc, count, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm";
 import db from "../db";
 import { advocates } from "../db/schema";
 import { SortableField } from "@/types/advocates";
@@ -18,6 +18,7 @@ export async function getAdvocates(
     ilike(advocates.lastName, `%${query}%`),
     ilike(advocates.city, `%${query}%`),
     ilike(advocates.degree, `%${query}%`),
+    ilike(advocates.fullName, `%${query}%`)
   );
 
   let baseQuery = db
@@ -33,6 +34,7 @@ export async function getAdvocates(
     );
   }
 
+  console.log(baseQuery.limit(pageSize).offset(offset).toSQL());
   const items = await baseQuery.limit(pageSize).offset(offset);
 
   const totalCount = (await db.select({ count: count() }).from(advocates).where(whereClause))[0].count;
